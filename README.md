@@ -2,7 +2,7 @@
 
 A Python imaging library extensions for dds, blp, ftex and icon image format processing.
 
-This package is not create from scratch, original files is here,
+This package is not create from scratch, original is here,
 http://nullege.com/codes/show/src%40p%40i%40pilgrim-HEAD%40pilgrim .
 
 
