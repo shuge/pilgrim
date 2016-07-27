@@ -1,18 +1,29 @@
 # -*- coding: utf-8 -*-
 
-from struct import unpack
+from struct import unpack,pack
+
+try:
+    xrange(1) # Python2
+except NameError:
+    xrange = range # Python 3
+
+try:
+    from __builtin__ import chr
+except ImportError:
+    def chr(num):
+        return pack('B',num)
 
 def decodeDXT1(data, alpha=False):
     """
     input: one "row" of data (i.e. will produce 4*width pixels)
     """
 
-    blocks = len(data) / 8  # number of blocks in row
-    finalColor = ["", "", "", ""]  # row accumulators
+    blocks = len(data) // 8  # number of blocks in row
+    finalColor = [b"", b"", b"", b""]  # row accumulators
 
     for block in xrange(blocks):
         # Decode next 8-byte block.
-        color0, color1, bits = unpack("<HHI", data[block*8:block*8+8])
+        color0, color1, bits = unpack(b"<HHI", data[block * 8 : block * 8 + 8])
 
         # color 0, packed 5-6-5
         r0 = ((color0 >> 11) & 0x1f) << 3
@@ -38,18 +49,18 @@ def decodeDXT1(data, alpha=False):
                     finalColor[j] += chr(r1) + chr(g1) + chr(b1)
                 elif control == 2:
                     if color0 > color1:
-                        finalColor[j] += chr((2 * r0 + r1) / 3) + chr((2 * g0 + g1) / 3) + chr((2 * b0 + b1) / 3)
+                        finalColor[j] += chr((2 * r0 + r1) // 3) + chr((2 * g0 + g1) // 3) + chr((2 * b0 + b1) // 3)
                     else:
-                        finalColor[j] += chr((r0 + r1) / 2) + chr((g0 + g1) / 2) + chr((b0 + b1) / 2)
+                        finalColor[j] += chr((r0 + r1) // 2) + chr((g0 + g1) // 2) + chr((b0 + b1) // 2)
                 elif control == 3:
                     if color0 > color1:
-                        finalColor[j] += chr((2 * r1 + r0) / 3) + chr((2 * g1 + g0) / 3) + chr((2 * b1 + b0) / 3)
+                        finalColor[j] += chr((2 * r1 + r0) // 3) + chr((2 * g1 + g0) // 3) + chr((2 * b1 + b0) // 3)
                     else:
                         if alpha:
-                            finalColor[j] += "\0\0\0\0"
+                            finalColor[j] += b"\0\0\0\0"
                             continue
                         else:
-                            finalColor[j] += "\0\0\0"
+                            finalColor[j] += b"\0\0\0"
                 if alpha:
                     finalColor[j] += chr(0xFF)
 
@@ -61,16 +72,16 @@ def decodeDXT3(data):
     input: one "row" of data (i.e. will produce 4*width pixels)
     """
 
-    blocks = len(data) / 16  # number of blocks in row
-    finalColor = ["", "", "", ""]  # row accumulators
+    blocks = len(data) // 16  # number of blocks in row
+    finalColor = [b"", b"", b"", b""]  # row accumulators
 
     for block in xrange(blocks):
         block = data[block*16:block*16+16]
         # Decode next 16-byte block.
-        bits = unpack("<8B", block[:8])
-        color0, color1 = unpack("<HH", block[8:12])
+        bits = unpack(b"<8B", block[:8])
+        color0, color1 = unpack(b"<HH", block[8:12])
 
-        code, = unpack("<I", block[12:])
+        code, = unpack(b"<I", block[12:])
 
         # color 0, packed 5-6-5
         r0 = ((color0 >> 11) & 0x1f) << 3
@@ -103,9 +114,9 @@ def decodeDXT3(data):
                 elif colorCode == 1:
                     finalColor[j] += chr(r1) + chr(g1) +  chr(b1) + chr(finalAlpha)
                 elif colorCode == 2:
-                    finalColor[j] += chr((2*r0+r1)/3) + chr((2*g0+g1)/3) + chr((2*b0+b1)/3) + chr(finalAlpha)
+                    finalColor[j] += chr((2*r0+r1)//3) + chr((2*g0+g1)//3) + chr((2*b0+b1)//3) + chr(finalAlpha)
                 elif colorCode == 3:
-                    finalColor[j] += chr((r0+2*r1)/3) + chr((g0+2*g1)/3) + chr((b0+2*b1)/3) + chr(finalAlpha)
+                    finalColor[j] += chr((r0+2*r1)//3) + chr((g0+2*g1)//3) + chr((b0+2*b1)//3) + chr(finalAlpha)
     return tuple(finalColor)
 
 
@@ -114,21 +125,21 @@ def decodeDXT5(data):
     input: one "row" of data (i.e. will produce 4*width pixels)
     """
 
-    blocks = len(data) / 16  # number of blocks in row
-    finalColor = ["", "", "", ""]  # row accumulators
+    blocks = len(data) // 16  # number of blocks in row
+    finalColor = [b"", b"", b"", b""]  # row accumulators
 
     for block in xrange(blocks):
-        block = data[block*16:block*16+16]
+        block = data[block * 16 : block * 16 + 16]
         # Decode next 16-byte block.
-        alpha0, alpha1 = unpack("<BB", block[:2])
+        alpha0, alpha1 = unpack(b"<BB", block[:2])
 
-        bits = unpack("<6B", block[2:8])
+        bits = unpack(b"<6B", block[2:8])
         alphaCode1 = bits[2] | (bits[3] << 8) | (bits[4] << 16) | (bits[5] << 24)
         alphaCode2 = bits[0] | (bits[1] << 8)
 
-        color0, color1 = unpack("<HH", block[8:12])
+        color0, color1 = unpack(b"<HH", block[8:12])
 
-        code, = unpack("<I", block[12:])
+        code, = unpack(b"<I", block[12:])
 
         # color 0, packed 5-6-5
         r0 = ((color0 >> 11) & 0x1f) << 3
@@ -174,8 +185,8 @@ def decodeDXT5(data):
                 elif colorCode == 1:
                     finalColor[j] += chr(r1) + chr(g1) +  chr(b1) + chr(finalAlpha)
                 elif colorCode == 2:
-                    finalColor[j] += chr((2*r0+r1)/3) + chr((2*g0+g1)/3) + chr((2*b0+b1)/3) + chr(finalAlpha)
+                    finalColor[j] += chr((2 * r0 + r1) // 3) + chr((2 * g0+g1) // 3) + chr((2 * b0 + b1) // 3 ) + chr(finalAlpha)
                 elif colorCode == 3:
-                    finalColor[j] += chr((r0+2*r1)/3) + chr((g0+2*g1)/3) + chr((b0+2*b1)/3) + chr(finalAlpha)
+                    finalColor[j] += chr((r0 + 2 * r1) // 3) + chr((g0 + 2*g1) // 3) + chr((b0 + 2 * b1) // 3 ) + chr(finalAlpha)
 
     return tuple(finalColor)

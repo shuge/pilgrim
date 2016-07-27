@@ -25,7 +25,17 @@ BLP files come in many different flavours:
   - DXT5 compression is used if alphaEncoding == 7.
 """
 
-from cStringIO import StringIO
+try:  
+    from io import StringIO # Python 3
+except ImportError: 
+    from cStringIO import StringIO # Python 2
+    
+try:
+    xrange(1) # Python2
+except NameError:
+    xrange = range # Python 3
+
+
 from struct import pack, unpack, error as StructError
 
 from PIL import Image, ImageFile
@@ -42,7 +52,7 @@ def getpalette(data):
     string = StringIO(data)
     while True:
         try:
-            palette.append(unpack("<4B", string.read(4)))
+            palette.append(unpack(b"<4B", string.read(4)))
         except StructError:
             break
     return palette
@@ -56,15 +66,15 @@ class BLP(ImageFile.ImageFile):
     def __decode_blp1(self):
         header = StringIO(self.fp.read(28 + 16*4 + 16*4))
 
-        magic, compression = unpack("<4si", header.read(8))
-        encoding, alphaDepth, alphaEncoding, hasMips = unpack("<4b", header.read(4))
-        self.size = unpack("<II", header.read(8))
-        encoding, subtype = unpack("<ii", header.read(8))
-        offsets = unpack("<16I", header.read(16*4))
-        lengths = unpack("<16I", header.read(16*4))
+        magic, compression = unpack(b"<4si", header.read(8))
+        encoding, alphaDepth, alphaEncoding, hasMips = unpack(b"<4b", header.read(4))
+        self.size = unpack(b"<II", header.read(8))
+        encoding, subtype = unpack(b"<ii", header.read(8))
+        offsets = unpack(b"<16I", header.read(16*4))
+        lengths = unpack(b"<16I", header.read(16*4))
 
         if compression == 0:
-            jpegHeaderSize, = unpack("<I", self.fp.read(4))
+            jpegHeaderSize, = unpack(b"<I", self.fp.read(4))
             jpegHeader = self.fp.read(jpegHeaderSize)
             extraData = self.fp.read(offsets[0] - self.fp.tell()) # What IS this?
             data = self.fp.read(lengths[0])
@@ -89,12 +99,12 @@ class BLP(ImageFile.ImageFile):
 
                 while True:
                     try:
-                        offset, = unpack("<B", _data.read(1))
-                        a, = unpack("<B", alpha_data.read(1))
+                        offset, = unpack(b"<B", _data.read(1))
+                        a, = unpack(b"<B", alpha_data.read(1))
                     except StructError:
                         break
                     b, g, r, _ = palette[offset]
-                    data.append(pack("<BBBB", r, g, b, a))
+                    data.append(pack(b"<BBBB", r, g, b, a))
 
                 data = "".join(data)
                 self.im = Image.core.new(self.mode, self.size)
@@ -110,13 +120,13 @@ class BLP(ImageFile.ImageFile):
                 self.tile = []
                 while True:
                     try:
-                        offset, = unpack("<B", _data.read(1))
+                        offset, = unpack(b"<B", _data.read(1))
                     except StructError:
                         break
                     b, g, r, a = palette[offset]
-                    data.append(pack("<BBB", r, g, b))
+                    data.append(pack(b"<BBB", r, g, b))
 
-                data = "".join(data)
+                data = b"".join(data)
                 self.im = Image.core.new(self.mode, self.size)
                 self.fromstring(data)
                 return
@@ -128,11 +138,11 @@ class BLP(ImageFile.ImageFile):
     def __decode_blp2(self):
         header = StringIO(self.fp.read(20 + 16*4 + 16*4))
 
-        magic, compression = unpack("<4si", header.read(8))
-        encoding, alphaDepth, alphaEncoding, hasMips = unpack("<4b", header.read(4))
-        self.size = unpack("<II", header.read(8))
-        offsets = unpack("<16I", header.read(16*4))
-        lengths = unpack("<16I", header.read(16*4))
+        magic, compression = unpack(b"<4si", header.read(8))
+        encoding, alphaDepth, alphaEncoding, hasMips = unpack(b"<4b", header.read(4))
+        self.size = unpack(b"<II", header.read(8))
+        offsets = unpack(b"<16I", header.read(16*4))
+        lengths = unpack(b"<16I", header.read(16*4))
         palette_data = self.fp.read(256*4)
 
         self.mode = "RGB"
@@ -146,11 +156,11 @@ class BLP(ImageFile.ImageFile):
 
                 while True:
                     try:
-                        offset, = unpack("<B", _data.read(1))
+                        offset, = unpack(b"<B", _data.read(1))
                     except StructError:
                         break
                     b, g, r, a = palette[offset]
-                    data.append(pack("<BBB", r, g, b))
+                    data.append(pack(b"<BBB", r, g, b))
 
             elif encoding == 2: # directx compression
                 self.mode = "RGBA" if alphaDepth else "RGB"

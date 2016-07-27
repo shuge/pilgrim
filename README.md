@@ -16,6 +16,7 @@ http://nullege.com/codes/show/src%40p%40i%40pilgrim-HEAD%40pilgrim .
 
     import pilgrim.utils
     import helper_string
+    import os
        
     full_path = '/path/to/a.dds'
     full_path = helper_string.HelperString.to_uni(full_path)
@@ -23,9 +24,9 @@ http://nullege.com/codes/show/src%40p%40i%40pilgrim-HEAD%40pilgrim .
     filename = os.path.basename(full_path)
     fn, ext = os.path.splitext(filename)
     
-    decoder =  tools.pilgrim.utils.getDecoder(full_path)
+    decoder =  pilgrim.utils.getDecoder(full_path)
     im = decoder(full_path)
-    print im.size
+    print(im.size)
     im.save(fn + ".png")
 
 

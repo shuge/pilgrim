@@ -10,13 +10,18 @@ The DTX1 texture format is described at:
  http://oss.sgi.com/projects/ogl-sample/registry/EXT/texture_compression_s3tc.txt
 """
 
-from struct import unpack
+from struct import unpack, pack
 
 from PIL import Image, ImageFile
 
+
+
 from ..decoders import dxtc
 
-
+try:
+    xrange(1) # Python2
+except NameError:
+    xrange = range # Python 3
 
 
 # dwFlags constants
@@ -53,7 +58,7 @@ class DDS(ImageFile.ImageFile):
 
         # Check header
         header = self.fp.read(128)
-        if header[:4] != "DDS ":
+        if header[:4] != b"DDS ":
             raise ValueError("Not a DDS file")
 
         dwSize, dwFlags, dwHeight, dwWidth, dwPitchLinear, dwDepth, dwMipMapCount, ddpfPixelFormat, ddsCaps = unpack("<IIIIIII 44x 32s 16s 4x", header[4:])
@@ -75,7 +80,7 @@ class DDS(ImageFile.ImageFile):
 
         # check for DXT1
         if (pf_dwFlags & DDPF_FOURCC != 0):
-            if pf_dwFourCC == "DXT1":
+            if pf_dwFourCC == b"DXT1":
                 if (pf_dwFlags & DDPF_ALPHAPIXELS != 0):
                     raise NotImplementedError("DXT1 with Alpha not supported yet")
                 else:
@@ -86,9 +91,32 @@ class DDS(ImageFile.ImageFile):
 
         else:
             # XXX is this right? I don't have an uncompressed dds to play with
-            self.mode = "RGB"
+            _dwSize, _dwFlags, dwFourCC, dwRGBBitCount, dwRBitMask, dwGBitMask, dwBBitMask, dwABitMask = unpack('<IIIIIIII', ddpfPixelFormat)
+            _mode = [None, None, None, None]
+            for mask,channel in zip([dwRBitMask, dwGBitMask, dwBBitMask, dwABitMask],'RGBA'):
+                if mask == 0x00000000: # hack no-alpha case
+                    _mode[3] = channel
+                elif mask == 0xff000000:
+                    _mode[3] = channel
+                elif mask == 0x00ff0000:
+                    _mode[2] = channel
+                elif mask == 0x0000ff00:
+                    _mode[1] = channel
+                elif mask == 0x000000ff:
+                    _mode[0] = channel
+                else:
+                    raise Exception('Unknow mask value')
+            
+            if _dwFlags % 2 != 0: #DDPF_ALPHAPIXELS
+                self.mode = "RGBA"
+                self._mode = ''.join(_mode)
+            else:
+                self.mode = 'RGB'
+                self._mode =''.join( _mode[:3])
+            
+            self.load = self._basicLoad
             # Construct the tile
-            self.tile = [("raw", (0, 0, dwWidth, dwHeight), 128, ("RGBX", dwPitchLinear - dwWidth, 1))]
+            #self.tile = [("raw", (0, 0, dwWidth, dwHeight), 128, ("RGBX", dwPitchLinear - dwWidth, 1))]
 
     def _loadDXTOpaque(self):
         if self._loaded: return
@@ -97,10 +125,11 @@ class DDS(ImageFile.ImageFile):
         data = []
         self.fp.seek(128) # skip header
 
-        linesize = (self.size[0] + 3) / 4 * 8 # Number of data byte per row
-
+        linesize = (self.size[0] + 3) // 4 * 8 # Number of data byte per row
+        
+        
         baseoffset = 0
-        for yb in xrange((self.size[1] + 3) / 4):
+        for yb in xrange((self.size[1] + 3) // 4):
             linedata = self.fp.read(linesize)
             decoded = dxtc.decodeDXT1(linedata) # returns 4-tuple of RGB lines
             for d in decoded:
@@ -109,8 +138,42 @@ class DDS(ImageFile.ImageFile):
                 data.append(d[:self.size[0]*3])
 
         # Now build the final image from our data strings
-        data = "".join(data[:self.size[1]])
+        #data = "".join(data[:self.size[1]])
+        data = b"".join(data[:self.size[1]])
         self.im = Image.core.new(self.mode, self.size)
         # self.fromstring(data)
         self.frombytes(data)
         self._loaded = 1
+    def _basicLoad(self):
+        if self._loaded: 
+            return
+        
+        self.fp.seek(128)
+        data = self.fp.read()
+        self.im = Image.core.new(self.mode, self.size)
+        self.frombytes(self._basic_decode(data, self._mode))
+        self._loaded = 1
+    def _basic_decode(self, data, mode='RGB'):
+        # data are bytes
+        #if mode in ['RGB','RGBA']: # base
+        #    return data 
+        len_mode = len(mode)
+        block_count = len(data)//len_mode
+        assert len(data) % len_mode == 0
+        
+        block_list = [data[i*len_mode : (i+1)*len_mode] for i in range(block_count)]
+        
+        r_index = mode.index('R')
+        g_index = mode.index('G')
+        b_index = mode.index('B')
+        
+        if len_mode == 3: # RBG,BRG...
+            new_block_list = [b''.join([pack('B',block[r_index]), pack('B',block[g_index]), pack('B',block[b_index])]) for block in block_list]
+            
+        elif len_mode == 4: #ARGB,GAGB...
+            a_index = mode.index('A')
+            new_block_list = [b''.join([pack('B',block[r_index]), pack('B',block[g_index]), pack('B',block[b_index]), pack('B',block[a_index])]) for block in block_list]
+            
+        return b''.join(new_block_list)
+
+        

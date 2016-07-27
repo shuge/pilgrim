@@ -21,7 +21,11 @@ interested in converting the game’s textures into an editable form, or who wan
 convert their own textures into the game’s optimal format.
 """
 
-from cStringIO import StringIO
+try:  
+    from io import StringIO # Python 3
+except ImportError: 
+    from cStringIO import StringIO # Python 2
+
 from struct import unpack
 
 from PIL import Image, ImageFile
